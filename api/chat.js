@@ -45,16 +45,24 @@ Rimtose temose (sveikata, pinigai, teisė, saugumas) trolinimas minimalus, o inf
 
 // Įrašo pokalbį į Supabase duomenų bazę (jei nustatyti SUPABASE_URL ir SUPABASE_SERVICE_KEY)
 async function logToDatabase(sessionId, userText, botText) {
-  const url = (process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  const rawUrl = (process.env.SUPABASE_URL || '').trim();
   const key = (process.env.SUPABASE_SERVICE_KEY || '').trim();
-  if (!url || !key) {
+  if (!rawUrl || !key) {
     console.error('DB: trūksta SUPABASE_URL arba SUPABASE_SERVICE_KEY');
+    return;
+  }
+  let base;
+  try {
+    // Paliekam tik adreso pradžią (https://xxxx.supabase.co), viską po to išmetam
+    base = new URL(rawUrl).origin;
+  } catch (e) {
+    console.error('DB: SUPABASE_URL neatrodo kaip adresas');
     return;
   }
   try {
     const headers = { 'Content-Type': 'application/json', apikey: key, Prefer: 'return=minimal' };
     if (!key.startsWith('sb_')) headers.Authorization = `Bearer ${key}`;
-    const r = await fetch(`${url}/rest/v1/messages`, {
+    const r = await fetch(`${base}/rest/v1/messages`, {
       method: 'POST',
       headers,
       body: JSON.stringify([
@@ -62,7 +70,7 @@ async function logToDatabase(sessionId, userText, botText) {
         { session_id: sessionId, role: 'assistant', content: botText },
       ]),
     });
-    if (!r.ok) console.error('DB klaida', r.status, await r.text());
+    if (!r.ok) console.error('DB klaida', r.status, 'adresas:', base, await r.text());
   } catch (e) {
     console.error('DB išimtis', e.message);
   }
