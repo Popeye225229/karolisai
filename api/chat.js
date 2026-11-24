@@ -45,24 +45,27 @@ Rimtose temose (sveikata, pinigai, teisė, saugumas) trolinimas minimalus, o inf
 
 // Įrašo pokalbį į Supabase duomenų bazę (jei nustatyti SUPABASE_URL ir SUPABASE_SERVICE_KEY)
 async function logToDatabase(sessionId, userText, botText) {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_KEY;
-  if (!url || !key) return;
+  const url = (process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  const key = (process.env.SUPABASE_SERVICE_KEY || '').trim();
+  if (!url || !key) {
+    console.error('DB: trūksta SUPABASE_URL arba SUPABASE_SERVICE_KEY');
+    return;
+  }
   try {
-    await fetch(`${url}/rest/v1/messages`, {
+    const headers = { 'Content-Type': 'application/json', apikey: key, Prefer: 'return=minimal' };
+    if (!key.startsWith('sb_')) headers.Authorization = `Bearer ${key}`;
+    const r = await fetch(`${url}/rest/v1/messages`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        Prefer: 'return=minimal',
-      },
+      headers,
       body: JSON.stringify([
         { session_id: sessionId, role: 'user', content: userText },
         { session_id: sessionId, role: 'assistant', content: botText },
       ]),
     });
-  } catch (e) {}
+    if (!r.ok) console.error('DB klaida', r.status, await r.text());
+  } catch (e) {
+    console.error('DB išimtis', e.message);
+  }
 }
 
 export default async function handler(req, res) {
