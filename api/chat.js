@@ -43,8 +43,29 @@ Gali keiktis (nx, hujne, bled, krw), bet gali naudoti neapykantos kalbos, rasist
 
 Rimtose temose (sveikata, pinigai, teisė, saugumas) trolinimas minimalus, o informacija tiksli. Jei nežinai, nesigalvok, pasakyk, kad nežinai.`;
 
+// Patikrina prisijungusį vartotoją pagal Supabase prieigos žetoną (jei jis atsiųstas)
+async function getUserId(req) {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  if (!token) return null;
+  const rawUrl = (process.env.SUPABASE_URL || '').trim();
+  const apikey = (process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_KEY || '').trim();
+  if (!rawUrl || !apikey) return null;
+  try {
+    const base = new URL(rawUrl).origin;
+    const r = await fetch(`${base}/auth/v1/user`, {
+      headers: { apikey, Authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) return null;
+    const u = await r.json();
+    return u && u.id ? u.id : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // Įrašo pokalbį į Supabase duomenų bazę (jei nustatyti SUPABASE_URL ir SUPABASE_SERVICE_KEY)
-async function logToDatabase(sessionId, userText, botText) {
+async function logToDatabase(sessionId, userId, userText, botText) {
   const rawUrl = (process.env.SUPABASE_URL || '').trim();
   const key = (process.env.SUPABASE_SERVICE_KEY || '').trim();
   if (!rawUrl || !key) {
@@ -53,7 +74,6 @@ async function logToDatabase(sessionId, userText, botText) {
   }
   let base;
   try {
-    // Paliekam tik adreso pradžią (https://xxxx.supabase.co), viską po to išmetam
     base = new URL(rawUrl).origin;
   } catch (e) {
     console.error('DB: SUPABASE_URL neatrodo kaip adresas');
@@ -66,8 +86,8 @@ async function logToDatabase(sessionId, userText, botText) {
       method: 'POST',
       headers,
       body: JSON.stringify([
-        { session_id: sessionId, role: 'user', content: userText },
-        { session_id: sessionId, role: 'assistant', content: botText },
+        { session_id: sessionId, user_id: userId, role: 'user', content: userText },
+        { session_id: sessionId, user_id: userId, role: 'assistant', content: botText },
       ]),
     });
     if (!r.ok) console.error('DB klaida', r.status, 'adresas:', base, await r.text());
@@ -96,7 +116,8 @@ export default async function handler(req, res) {
       parts: [{ text: m.text.slice(0, 4000) }],
     }));
 
-  if (contents.length === 0 || contents[0].role !== 'user') {
+  while (contents.length && contents[0].role !== 'user') contents.shift();
+  if (contents.length === 0) {
     return res.status(400).json({ error: 'Blogos žinutės' });
   }
 
@@ -125,7 +146,8 @@ export default async function handler(req, res) {
 
     const lastUser = contents[contents.length - 1].parts[0].text;
     const sid = String((req.body && req.body.sessionId) || 'unknown').slice(0, 100);
-    await logToDatabase(sid, lastUser, reply);
+    const userId = await getUserId(req);
+    await logToDatabase(sid, userId, lastUser, reply);
 
     return res.status(200).json({ reply });
   } catch (e) {
