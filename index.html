@@ -1,28 +1,11 @@
+<!DOCTYPE html>
 <html lang="lt">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#070b16">
 <title>Markus AI</title>
 <style>
-  * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; }
-  body {
-    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    background: linear-gradient(180deg, #0b1d33 0%, #10281f 100%);
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 24px;
-  }
-  h1 { font-size: clamp(28px, 7vw, 48px); margin: 0 0 12px; line-height: 1.2; }
-  .dots span { animation: blink 1.4s infinite both; }
-  .dots span:nth-child(2) { animation-delay: .2s; }
-  .dots span:nth-child(3) { animation-delay: .4s; }
-  @keyframes blink { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
   :root { --bg:#070b16; --text:#e8ecf8; --muted:#8b93a7; --accent:#7c83ff; --accent2:#a855f7; --line:rgba(255,255,255,.08); --glass:rgba(255,255,255,.05); }
   * { box-sizing:border-box; }
   html, body { height:100%; margin:0; }
@@ -104,7 +87,6 @@
 </style>
 </head>
 <body>
-  <h1>Svetainė perdaroma į Markus AI<span class="dots"><span>.</span><span>.</span><span>.</span></span></h1>
 <div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
 
 <div class="app">
@@ -135,7 +117,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
-  const APP_VERSION = 'Beta v0.5.0';
+  const APP_VERSION = 'Beta v0.5.1';
   const $ = (id) => document.getElementById(id);
   const chat = $('chat'), form = $('form'), input = $('input'), send = $('send'), authBox = $('auth'), toastEl = $('toast');
   const history = [];
