@@ -2,8 +2,8 @@
 <html lang="lt">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Karolis</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markus AI</title>
 <style>
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -12,213 +12,19 @@
     background: linear-gradient(180deg, #0b1d33 0%, #10281f 100%);
     color: #fff;
     display: flex;
+    align-items: center;
     justify-content: center;
+    text-align: center;
+    padding: 24px;
   }
-  .app { width: 100%; max-width: 520px; height: 100%; display: flex; flex-direction: column; }
-  header { padding: 14px 16px; font-weight: 600; background: rgba(0,0,0,.35); display: flex; align-items: center; gap: 10px; }
-  .avatar { width: 34px; height: 34px; border-radius: 50%; background: #2a2a2e; display: flex; align-items: center; justify-content: center; font-size: 18px; flex: none; }
-  .status { font-size: 12px; font-weight: 400; opacity: .7; }
-  #auth { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 400; }
-  #auth .who { opacity: .7; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #auth button { padding: 6px 12px; font-size: 12px; background: #242427; border: 1px solid rgba(255,255,255,.15); }
-  .notice { font-size: 12px; opacity: .7; padding: 6px 14px; background: rgba(0,0,0,.25); }
-  #chat { flex: 1; overflow-y: auto; padding: 14px 12px; display: flex; flex-direction: column; gap: 4px; }
-  .row { display: flex; align-items: flex-end; gap: 8px; }
-  .row.me { justify-content: flex-end; }
-  .bubble { max-width: 78%; padding: 8px 13px; border-radius: 18px; background: #242427; font-size: 15px; line-height: 1.35; word-wrap: break-word; white-space: pre-wrap; }
-  .me .bubble { background: #2b6cff; }
-  .spacer { width: 34px; flex: none; }
-  .typing { opacity: .7; font-size: 13px; padding: 4px 0 4px 42px; }
-  form { display: flex; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); background: rgba(0,0,0,.35); }
-  input { flex: 1; border: 0; border-radius: 20px; padding: 11px 15px; background: #242427; color: #fff; font-size: 16px; outline: none; }
-  button { border: 0; border-radius: 20px; padding: 0 18px; background: #2b6cff; color: #fff; font-size: 15px; cursor: pointer; }
-  button:disabled { opacity: .5; }
+  h1 { font-size: clamp(28px, 7vw, 48px); margin: 0 0 12px; line-height: 1.2; }
+  .dots span { animation: blink 1.4s infinite both; }
+  .dots span:nth-child(2) { animation-delay: .2s; }
+  .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
 </style>
 </head>
 <body>
-<div class="app">
-  <header>
-    <div class="avatar">🎩</div>
-    <div>Karolis<div class="status">aktyvus</div></div>
-    <div id="auth"></div>
-  </header>
-  <div class="notice">   .</div>
-  <div id="chat"></div>
-  <form id="form">
-    <input id="input" type="text" placeholder="Rašyk Karoliui..." autocomplete="off" maxlength="2000">
-    <button id="send" type="submit">Siųsti</button>
-  </form>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script>
-  const chat = document.getElementById('chat');
-  const form = document.getElementById('form');
-  const input = document.getElementById('input');
-  const send = document.getElementById('send');
-  const authBox = document.getElementById('auth');
-  const history = [];
-
-  let sessionId;
-  try {
-    sessionId = localStorage.getItem('sid');
-    if (!sessionId) { sessionId = crypto.randomUUID(); localStorage.setItem('sid', sessionId); }
-  } catch (e) { sessionId = 'anon-' + Math.random().toString(36).slice(2); }
-
-  let sb = null;
-  let accessToken = null;
-  let loadedFor = null;
-
-  function splitReply(text) {
-    return text.split(/^\s*---\s*$/m).map((s) => s.trim()).filter(Boolean).slice(0, 10);
-  }
-
-  function addBubble(text, who) {
-    const row = document.createElement('div');
-    row.className = 'row ' + who;
-    if (who === 'bot') {
-      const last = chat.lastElementChild;
-      if (last && last.classList.contains('bot')) {
-        const sp = document.createElement('div'); sp.className = 'spacer'; row.appendChild(sp);
-      } else {
-        const av = document.createElement('div'); av.className = 'avatar'; av.textContent = '🎩'; row.appendChild(av);
-      }
-    }
-    const b = document.createElement('div');
-    b.className = 'bubble';
-    b.textContent = text;
-    row.appendChild(b);
-    chat.appendChild(row);
-    chat.scrollTop = chat.scrollHeight;
-  }
-
-  function setTyping(on) {
-    let t = document.getElementById('typing');
-    if (on && !t) {
-      t = document.createElement('div'); t.id = 'typing'; t.className = 'typing'; t.textContent = 'Karolis rašo...';
-      chat.appendChild(t);
-    } else if (!on && t) { t.remove(); }
-    chat.scrollTop = chat.scrollHeight;
-  }
-
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-  // ---------- Prisijungimas (neprivalomas) ----------
-  function renderAuth(session) {
-    authBox.innerHTML = '';
-    if (!sb) return;
-    if (session) {
-      const who = document.createElement('span');
-      who.className = 'who';
-      who.textContent = (session.user && session.user.email) || 'prisijungta';
-      const out = document.createElement('button');
-      out.type = 'button';
-      out.textContent = 'Atsijungti';
-      out.onclick = () => sb.auth.signOut();
-      authBox.appendChild(who);
-      authBox.appendChild(out);
-    } else {
-      const inBtn = document.createElement('button');
-      inBtn.type = 'button';
-      inBtn.textContent = 'Prisijungti su Google';
-      inBtn.onclick = () => sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
-      authBox.appendChild(inBtn);
-    }
-  }
-
-  async function loadHistory(uid) {
-    try {
-      const { data, error } = await sb
-        .from('messages')
-        .select('role,content')
-        .eq('user_id', uid)
-        .order('id', { ascending: false })
-        .limit(60);
-      if (error || !data) return;
-      data.reverse();
-      chat.innerHTML = '';
-      history.length = 0;
-      data.forEach((m) => {
-        if (m.role === 'user') {
-          addBubble(m.content, 'me');
-          history.push({ role: 'user', text: m.content });
-        } else {
-          splitReply(m.content).forEach((t) => addBubble(t, 'bot'));
-          history.push({ role: 'assistant', text: m.content });
-        }
-      });
-      if (!data.length) addBubble('Alio', 'bot');
-    } catch (e) {}
-  }
-
-  function applySession(session) {
-    accessToken = session ? session.access_token : null;
-    renderAuth(session);
-    const uid = session && session.user ? session.user.id : null;
-    if (uid && loadedFor !== uid) {
-      loadedFor = uid;
-      setTimeout(() => loadHistory(uid), 0);
-    }
-    if (!uid && loadedFor) {
-      loadedFor = null;
-      chat.innerHTML = '';
-      history.length = 0;
-      addBubble('Alio', 'bot');
-    }
-  }
-
-  async function initAuth() {
-    try {
-      if (!window.supabase) return;
-      const r = await fetch('/api/config');
-      const cfg = await r.json();
-      if (!cfg.url || !cfg.anonKey) return;
-      sb = window.supabase.createClient(cfg.url, cfg.anonKey);
-      sb.auth.onAuthStateChange((event, session) => applySession(session));
-      const { data } = await sb.auth.getSession();
-      applySession(data.session);
-    } catch (e) {}
-  }
-
-  // ---------- Žinučių siuntimas ----------
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const text = input.value.trim();
-    if (!text) return;
-    input.value = '';
-    addBubble(text, 'me');
-    history.push({ role: 'user', text });
-    send.disabled = true;
-    setTyping(true);
-    try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (accessToken) headers.Authorization = 'Bearer ' + accessToken;
-      const r = await fetch('/api/chat', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ messages: history, sessionId }),
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'klaida');
-      const lines = splitReply(data.reply);
-      history.push({ role: 'assistant', text: lines.join('\n---\n') });
-      for (let i = 0; i < lines.length; i++) {
-        setTyping(true);
-        await sleep(300 + Math.min(lines[i].length * 6, 1200));
-        setTyping(false);
-        addBubble(lines[i], 'bot');
-      }
-    } catch (err) {
-      setTyping(false);
-      addBubble('Alio nera rysio nx', 'bot');
-      history.pop();
-    }
-    send.disabled = false;
-    input.focus();
-  });
-
-  addBubble('Alio', 'bot');
-  initAuth();
-</script>
+  <h1>Svetainė perdaroma į Markus AI<span class="dots"><span>.</span><span>.</span><span>.</span></span></h1>
 </body>
 </html>
